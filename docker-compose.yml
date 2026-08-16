@@ -1,17 +1,38 @@
-name: Selenoid Tests Workflow
-on:
-  push:
-    branches:
-      - master
+services:
 
-jobs:
-  # Переименуем задачу
-  run-selenoid-tests:
-    runs-on: ubuntu-latest
-    steps:
-      # Первый шаг оставим таким же
-      - name: Check out repository code  
-        uses: actions/checkout@v3 
-      # Поднимаем контейнеры и выходим при завершении работы контейнера test_docker
-      - name: Run tests in docker
-        run: docker compose up --build --exit-code-from test_docker
+  selenoid:
+    image: "aerokube/selenoid"
+    container_name: selenoid
+    ports:
+      - "4444:4444"
+    networks:
+      - selenoid
+    volumes:
+      - "./config.json:/etc/selenoid/config.json"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    command: ["-conf", "/etc/selenoid/config.json", "-container-network", "selenoid"]
+
+  selenoid-ui:
+    image: "aerokube/selenoid-ui:latest"
+    container_name: selenoid-ui
+    links:
+      - selenoid
+    ports:
+      - "8081:8080"
+    networks:
+      - selenoid
+    command: ["--selenoid-uri", "http://selenoid:4444"]
+
+  test_docker:
+    build: .
+    container_name: test_docker
+    depends_on:
+      - selenoid
+    networks:
+      - selenoid
+    tty: true
+    command: ["pytest"]
+
+networks:
+  selenoid:
+    name: selenoid
